@@ -27,4 +27,8 @@ contract Quote_Registry {
     function owner() public view returns (address) {
         return contractOwner;
     }
+    
+    function checkBalance(address _addr) public view returns(uint) {
+        return _addr.balance;
+    }
 }

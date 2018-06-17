@@ -22,7 +22,6 @@ contract Quote_Registry {
         address _oldOwner = quoteRegistry[_quote];
         quoteRegistry[_quote] = _newOwner;
         _oldOwner.transfer(msg.value);
-        
     }
 
     function owner() public view returns (address) {

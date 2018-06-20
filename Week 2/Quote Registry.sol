@@ -20,9 +20,15 @@ contract Quote_Registry {
     }
 
     function transfer(string _quote, address _newOwner) public payable {
+        address _oldOwner = ownership(_quote);
+        
+        require(msg.sender != _oldOwner, "msg.sender is already owner of this quote..");
+        
+        require(_oldOwner != _newOwner, "New owner is already owner of this quote..");
+        
         require(msg.value == 0.5 ether,"Fee of 0.5 ether to be paid for transfer of ownership");
         
-        address _oldOwner = ownership(_quote);
+   
         quoteRegistry[_quote] = _newOwner;
         
         _oldOwner.transfer(msg.value);

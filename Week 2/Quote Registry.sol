@@ -22,7 +22,7 @@ contract Quote_Registry {
     function transfer(string _quote, address _newOwner) public payable {
         address _oldOwner = ownership(_quote);
         
-        require(msg.sender != _oldOwner, "msg.sender is already owner of this quote..");
+        require(msg.sender == _oldOwner, "You are not a owner of this quote..");
         
         require(_oldOwner != _newOwner, "New owner is already owner of this quote..");
         

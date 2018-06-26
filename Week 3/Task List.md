@@ -17,3 +17,4 @@
 - [ ] Voters vote on a given proposal by calling the function approve or reject depending on their preferences.
 - [x] Pay close attention to the events that the contract should emit.
 - [x] A beneficiary can submit only one proposal at a time
+- [ ] contributor v/s voter (or signers) are they same or different.

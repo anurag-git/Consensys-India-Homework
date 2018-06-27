@@ -8,9 +8,9 @@
 
 Signers
 ---------------------
-0xdfb782fbf761c0094de25cc6c21bbb9fd272aad5
-0x922326d0fac731b422f811a9551686f621190d5a
-0x51bdf0e78b29859cc15d8d1699666b34772afb49
+0xfa3c6a1d480a14c546f12cdbb6d1bacbf02a1610
+0x2f47343208d8db38a64f49d7384ce70367fc98c0
+0x7c0e7b2418141f492653c6bf9ced144c338ba740
 */
 
 pragma solidity ^0.4.20;
@@ -69,12 +69,19 @@ library SafeMath {
 }
 
 interface AbstractMultiSig {
+    
+  /*
+   * This function should return the onwer of this contract or whoever you
+   * want to receive the Gyaan Tokens reward if it's coded correctly.
+   */
+   
+  function owner() external returns(address);
 
   /*
    * This event should be dispatched whenever the contract receives
    * any contribution (Ethers).
    */
-  event ReceivedContribution(address indexed _contributor, uint valueInWei);
+   event ReceivedContribution(address indexed _contributor, uint _valueInWei);
 
   /*
    * When this contract is initially created, it's in the state
@@ -94,7 +101,7 @@ interface AbstractMultiSig {
    * This contract should be able to handle many proposals at once.
    */
   function submitProposal(uint _value) external;
-  event ProposalSubmitted(address indexed _beneficiary, uint _value);
+  event ProposalSubmitted(address indexed _beneficiary, uint _valueInWei);
 
   /*
    * Returns a list of beneficiaries for the open proposals. Open
@@ -123,13 +130,13 @@ interface AbstractMultiSig {
    * Approve the proposal for the given beneficiary
    */
   function approve(address _beneficiary) external;
-  event ProposalApproved(address indexed _approver, address indexed _beneficiary, uint _value);
+  event ProposalApproved(address indexed _approver, address indexed _beneficiary, uint _valueInWei);
 
   /*
    * Reject the proposal of the given beneficiary
    */
   function reject(address _beneficiary) external;
-  event ProposalRejected(address indexed _approver, address indexed _beneficiary, uint _value);
+  event ProposalRejected(address indexed _approver, address indexed _beneficiary, uint _valueInWei);
 
   /*
    * Withdraw the specified value from the wallet.
@@ -139,7 +146,7 @@ interface AbstractMultiSig {
    *
    */
   function withdraw(uint _value) external;
-  event WithdrawPerformed(address indexed beneficiary, uint _value);
+  event WithdrawPerformed(address indexed beneficiary, uint _valueInWei);
 
 }
 
@@ -151,13 +158,12 @@ contract MultiSig {
     * This event should be dispatched whenever the contract receives
     * any contribution (Ethers).
     */
-    event ReceivedContribution(address indexed _contributor, uint valueInWei);
+    event ReceivedContribution(address indexed _contributor, uint _valueInWei);
 
-    event ProposalSubmitted(address indexed _beneficiary, uint _value);
-    event ProposalApproved(address indexed _approver, address indexed _beneficiary, uint _value);
-    event ProposalRejected(address indexed _approver, address indexed _beneficiary, uint _value);
-    event WithdrawPerformed(address indexed beneficiary, uint _value);
-    event WithdrawRejected(address indexed beneficiary, uint _value);
+    event ProposalSubmitted(address indexed _beneficiary, uint _valueInWei);
+    event ProposalApproved(address indexed _approver, address indexed _beneficiary, uint _valueInWei);
+    event ProposalRejected(address indexed _approver, address indexed _beneficiary, uint _valueInWei);
+    event WithdrawPerformed(address indexed beneficiary, uint _valueInWei);
 
     // for testing state variable
     //event CheckState(string _str);
@@ -181,46 +187,41 @@ contract MultiSig {
     mapping(address => bool) private contributors;
     mapping(address => uint) private getProposalValue;
     mapping(address => bool) private submitted;
-
-    address public contractOwner;
-    address[] private listOfContributors;
     mapping(address => bool) public signersList;
-    uint private signerCount = 0;
-
-    uint public totalContribution = 0;
-    uint public minimumContribution = 0; //in Weis
-    //uint private WEI_TO_ETHER=1000000000000000000;
-
-    ProposalState public state;
     mapping(address => SubmittedProposal) private proposals;
+    
+    // Address variables
+    address private contractOwner;
+    address[] private listOfContributors;
 
-    // 100,["0xdfb782fbf761c0094de25cc6c21bbb9fd272aad5","0x922326d0fac731b422f811a9551686f621190d5a","0x51bdf0e78b29859cc15d8d1699666b34772afb49"]
+    // Integer variables
+    uint public signerCount = 0;
+    uint public totalContribution = 0; //in Weis
+    
+    ProposalState public state;
+
     constructor () public {
-        require(msg.value > 0,"Contribution should be greater than 0 wei !!!");
         contractOwner = msg.sender;
-
-        minimumContribution = msg.value;
         state = ProposalState.AcceptingContributions;
 
-        signersList[0xdfb782fbf761c0094de25cc6c21bbb9fd272aad5] = true; signerCount = signerCount.add(1);
-        signersList[0x922326d0fac731b422f811a9551686f621190d5a] = true; signerCount = signerCount.add(1);
-        signersList[0x51bdf0e78b29859cc15d8d1699666b34772afb49] = true; signerCount = signerCount.add(1);
+//        signersList[address(0x00fa3c6a1d480a14c546f12cdbb6d1bacbf02a1610)] = true; signerCount = signerCount.add(1);
+//        signersList[address(0x002f47343208d8db38a64f49d7384ce70367fc98c0)] = true; signerCount = signerCount.add(1);
+//        signersList[address(0x007c0e7b2418141f492653c6bf9ced144c338ba740)] = true; signerCount = signerCount.add(1);
 
         //my test in remix to be removed
-        signersList[0xdd870fa1b7c4700f2bd7f44238821c26f7392148] = true; signerCount = signerCount.add(1);
-        signersList[0xf3a8894f73e055511bfeeba6f8313693a0d7d108] = true; signerCount = signerCount.add(1);
-        signersList[0xe7d081c76dea36b1f087924d8404c2c840b44789] = true; signerCount = signerCount.add(1);
+        signersList[address(0x00dd870fa1b7c4700f2bd7f44238821c26f7392148)] = true; signerCount = signerCount.add(1);
+        signersList[address(0x00583031d1113ad414f02576bd6afabfb302140225)] = true; signerCount = signerCount.add(1);
 
         //emit CheckState("AcceptingContributions");
     }
 
     modifier isSigner() {
-        require(signersList[msg.sender],"You are not a signer!!!")
+        require(signersList[msg.sender],"You are not a signer!!!");
         _;
     }
 
     modifier isNotASigner() {
-        require(!signersList[msg.sender],"Signer cannot submit a proposal!!!")
+        require(!signersList[msg.sender],"Signer cannot submit a proposal!!!");
         _;
     }
 
@@ -243,10 +244,10 @@ contract MultiSig {
     // fallback function to receive contribution in weis
     function () inState(ProposalState.AcceptingContributions) public payable {
         //check if we can have require in fallback fucntion
-        require(msg.value >= minimumContribution,"Minimum Contribution should be greater than 0 wei !!!");
+        require(msg.value > 0,"Minimum Contribution should be greater than 0 wei !!!");
 
         //Add contributor and its contribution to the mapping
-        //contributions[msg.sender] = contributions[msg.sender].add(msg.value);
+        contributions[msg.sender] = contributions[msg.sender].add(msg.value);
 
         if(!contributors[msg.sender]) {
             contributors[msg.sender] = true; //Add contributor to the list
@@ -304,7 +305,7 @@ contract MultiSig {
         emit ProposalSubmitted(msg.sender, _value);
    }
 
-function getCompleteProposal(address _beneficiary) public view returns (address,int,int,int) {
+function getCompleteProposal(address _beneficiary) public view returns (address,uint,uint,uint) {
     SubmittedProposal memory tempProposal = proposals[_beneficiary];
     return (
       tempProposal.submitter,
@@ -343,7 +344,7 @@ function getCompleteProposal(address _beneficiary) public view returns (address,
   function approve(address _beneficiary) external isSigner inState(ProposalState.Active) {
     SubmittedProposal storage aProposal = proposals[_beneficiary];
 
-    require(aProposal.rejections[msg.sender],"You cannot approve as you have already rejected this proposal!!!");
+    require(!aProposal.rejections[msg.sender],"You cannot approve as you have already rejected this proposal!!!");
     require(!aProposal.approvals[msg.sender],"You can approve only once!!!");
 
     uint value = getProposalValue[_beneficiary];
@@ -361,7 +362,7 @@ function getCompleteProposal(address _beneficiary) public view returns (address,
   function reject(address _beneficiary) external isSigner inState(ProposalState.Active) {
     SubmittedProposal storage rProposal = proposals[_beneficiary];
 
-    require(rProposal.approvals[msg.sender],"You cannot reject as you have already approved this proposal!!!");
+    require(!rProposal.approvals[msg.sender],"You cannot reject as you have already approved this proposal!!!");
     require(!rProposal.rejections[msg.sender],"You can reject only once!!!");
 
     uint value = getProposalValue[_beneficiary];
@@ -386,24 +387,31 @@ function getCompleteProposal(address _beneficiary) public view returns (address,
    * should be sent.
    *
    */
-  function withdraw(uint _value) external isContributor inState(ProposalState.Active) {
+  function withdraw(uint _value) external isContributor inState(ProposalState.Active) payable {
     // get proposal from msg.sender
     SubmittedProposal storage withdrawProposal = proposals[msg.sender];
     uint proposedValue = getProposalValue[msg.sender];
 
-    //Minimum 50% contributors should approve!!!
-    if(withdrawProposal.approvalCount > signerCount.div(2)) {
-      // requested _value should be less than or equal to proposed value
-      if(_value <= proposedValue) {
-          msg.sender.transfer(_value);
-      }
-
-      emit WithdrawPerformed(msg.sender, _value);
-    } else if(withdrawProposal.rejectionCount > signerCount.div(2)) {
-      // Minimum 50% contributors rejected,
+    // Minimum 50% signers should approve!!! and
+    // requested _value should be less than or equal to proposed value
+    if( withdrawProposal.approvalCount >= signerCount.div(2) && _value <= proposedValue ) {
+        msg.sender.transfer(_value); // contract balance will decrease
+        
+        if(_value < proposedValue) {
+            uint residualValue = proposedValue.sub(_value);
+            totalContribution = totalContribution.add(residualValue);
+        }
+        
+        emit WithdrawPerformed(msg.sender, _value);
+    } else {
+        revert("Either not enough approvals OR requested value greater than proposed value");
+    }
+    
+    // Minimum 50% signers should reject
+    if(withdrawProposal.rejectionCount >= signerCount.div(2)) {
       // hence adding the value back to totalContribution
-      totalContribution = totalContribution.add(_value);
-      emit WithdrawRejected(msg.sender, _value);
+      totalContribution = totalContribution.add(proposedValue); // add back unused/rejected value to totalContribution
+      address(this).transfer(proposedValue); // transfer back unused/rejected value to contract
     }
   }
 

@@ -281,8 +281,7 @@ contract MultiSig {
    2. reduce _value from totalContribution -- DONE
    */
    function submitProposal(uint _value) external isNotASigner inState(ProposalState.Active) {
-        require(_value <= totalContribution.div(2),"Value cannot be more than 10% of the total holdings of the contract!!!");
-        //require(_value <= totalContribution.div(10),"Value cannot be more than 10% of the total holdings of the contract!!!");
+        require(_value <= totalContribution.div(10),"Value cannot be more than 10% of the total holdings of the contract!!!");
         require(!submitters[msg.sender], "Beneficiary is allowed only one proposal at a time!!!");
 
         SubmittedProposal memory newProposal = SubmittedProposal({
@@ -293,7 +292,6 @@ contract MultiSig {
         });
 
         openBeneficiaries.push(msg.sender);
-
         proposals[msg.sender] = newProposal;
         getProposalValue[msg.sender] = _value;
         submitters[msg.sender] = true;

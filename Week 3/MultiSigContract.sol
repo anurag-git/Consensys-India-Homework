@@ -197,6 +197,8 @@ contract MultiSig {
     // Integer variables
     uint public signerCount = 0;
     uint public totalContribution = 0; //in Weis
+    uint public availableContribution = 0; //in Weis
+
     ProposalState public state;
 
     constructor () public {
@@ -207,12 +209,12 @@ contract MultiSig {
         signersList[address(0x002f47343208d8db38a64f49d7384ce70367fc98c0)] = true; signerCount = signerCount.add(1);
         signersList[address(0x007c0e7b2418141f492653c6bf9ced144c338ba740)] = true; signerCount = signerCount.add(1);
 
-/*
-        //my test in remix to be removed
+ /*
+  //my test in remix to be removed
         signersList[address(0x00dd870fa1b7c4700f2bd7f44238821c26f7392148)] = true; signerCount = signerCount.add(1);
         signersList[address(0x00583031d1113ad414f02576bd6afabfb302140225)] = true; signerCount = signerCount.add(1);
         signersList[address(0x004b0897b0513fdc7c541b6d9d7e929c4e5364d2db)] = true; signerCount = signerCount.add(1);
-*/
+  */  
     }
 
     modifier isSigner() {
@@ -237,7 +239,6 @@ contract MultiSig {
 
     // fallback function to receive contribution in weis
     function () inState(ProposalState.AcceptingContributions) public payable {
-        //check if we can have require in fallback fucntion
         require(msg.value > 0,"Minimum Contribution should be greater than 0 wei !!!");
 
         //Add contributor and its contribution to the mapping
@@ -249,6 +250,7 @@ contract MultiSig {
         }
 
         totalContribution = totalContribution.add(msg.value); // total contribution from all signers
+        availableContribution = totalContribution;
 
         emit ReceivedContribution(msg.sender, msg.value); //Send event after receiving contribution
     }
@@ -278,10 +280,12 @@ contract MultiSig {
 
    TODO:
    1. handle multiple proposal by same submitter
-   2. reduce _value from totalContribution -- DONE
    */
    function submitProposal(uint _value) external isNotASigner inState(ProposalState.Active) {
+     //   require(_value <= totalContribution.div(2),"Value cannot be more than 50% of the total holdings of the contract!!!");
         require(_value <= totalContribution.div(10),"Value cannot be more than 10% of the total holdings of the contract!!!");
+
+        require(_value <= availableContribution, "Not enough Ethers available!!!");
         require(!submitters[msg.sender], "Beneficiary is allowed only one proposal at a time!!!");
 
         SubmittedProposal memory newProposal = SubmittedProposal({
@@ -292,10 +296,12 @@ contract MultiSig {
         });
 
         openBeneficiaries.push(msg.sender);
+
         proposals[msg.sender] = newProposal;
         getProposalValue[msg.sender] = _value;
         submitters[msg.sender] = true;
-        totalContribution = totalContribution.sub(_value);
+        //submittedContribution = submittedContribution.add(_value);
+        availableContribution = availableContribution.sub(_value);
 
         emit ProposalSubmitted(msg.sender, _value);
    }
@@ -399,11 +405,16 @@ contract MultiSig {
    TODO:
    1.handle multiple withdrawals
    2. you cannot withdraw without submitting proposal -- DONE
+   3. reset submitters in case of revert so that he can submit new proposal again - DONE
+   4. 
    */
   function withdraw(uint _value) external isNotASigner inState(ProposalState.Active) payable {
     require(submitters[msg.sender],"No proposal submitted for this beneficiary!!!");
+
     // get proposal from msg.sender
     SubmittedProposal storage withdrawProposal = proposals[msg.sender];
+    
+    require(msg.sender == withdrawProposal.submitter,"Withdrawer is not the same as Proposal Submitter");
     require(!withdrawals[msg.sender],"Withdrawals allowed only once!!!");
 
 //    require(withdrawProposal.approvals[msg.sender] || withdrawProposal.rejections[msg.sender],
@@ -421,29 +432,28 @@ contract MultiSig {
         } else if(_value < proposedValue) {
             msg.sender.transfer(_value);
             uint residualValue = proposedValue.sub(_value);
-            totalContribution = totalContribution.add(residualValue); // add unused value to totalContribution
-            //address(this).transfer(residualValue); // transfer back unused value to contract
-            //getProposalValue[msg.sender] = residualValue;
-            withdrawals[msg.sender] = true;
+            availableContribution = availableContribution.add(residualValue); // add unused value to availableContribution
+            withdrawals[msg.sender] = false; // so that we can withdraw again in case of partial withdrawal
+            getProposalValue[msg.sender] = residualValue;
             emit WithdrawPerformed(msg.sender, _value);
         } else if(_value > proposedValue) {
-            totalContribution = totalContribution.add(proposedValue); // add back unused value to totalContribution
+            availableContribution = availableContribution.add(proposedValue); // add back unused value to availableContribution
             withdrawals[msg.sender] = true;
-            revert("Requested more than proposed value, Submit a new Proposal!!!");
         }
     }
 
     // Minimum 50% signers should reject
     if(withdrawProposal.rejectionCount >= signerCount.div(2)) {
-      totalContribution = totalContribution.add(proposedValue); // add back unused/rejected value to totalContribution
+      availableContribution = availableContribution.add(proposedValue); // add back unused/rejected value to availableContribution
       withdrawals[msg.sender] = true;
+      submitters[msg.sender] = false; // now it is allowed to submit again as proposal rejected
     }
 
     // if approval and rejection counts are equal
     if(withdrawProposal.approvalCount == withdrawProposal.rejectionCount) {
         withdrawals[msg.sender] = true;
-        totalContribution = totalContribution.add(proposedValue); // add back unused/rejected value to totalContribution
-        revert("No Majority hence withdraw cancelled!!!");
+        availableContribution = availableContribution.add(proposedValue); // add back unused/rejected value to availableContribution
+        submitters[msg.sender] = false; // now it is allowed to submit again as proposal rejected
     }
   }
 

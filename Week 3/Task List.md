@@ -38,3 +38,5 @@ have a fallback function, then june 16 transferether
 - [x] Only one at a time. A beneficiary cannot have two open proposals.
 - [ ] add proposal state for each proposal separately
 - [ ] should I change proposal to AcceptingContributions in withdraw after it is accepted or rejected?
+- [ ] handle multiple proposals
+- [ ] implement listOpenBeneficiariesProposals

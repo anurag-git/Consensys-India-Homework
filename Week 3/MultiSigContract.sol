@@ -69,12 +69,12 @@ library SafeMath {
 }
 
 interface AbstractMultiSig {
-    
+
   /*
    * This function should return the onwer of this contract or whoever you
    * want to receive the Gyaan Tokens reward if it's coded correctly.
    */
-   
+
   function owner() external returns(address);
 
   /*
@@ -165,9 +165,6 @@ contract MultiSig {
     event ProposalRejected(address indexed _approver, address indexed _beneficiary, uint _valueInWei);
     event WithdrawPerformed(address indexed beneficiary, uint _valueInWei);
 
-    // for testing state variable
-    //event CheckState(string _str);
-
     enum ProposalState {
         AcceptingContributions,
         Active
@@ -186,10 +183,11 @@ contract MultiSig {
     mapping(address => uint) private contributions;
     mapping(address => bool) private contributors;
     mapping(address => uint) private getProposalValue;
-    mapping(address => bool) private submitted;
-    mapping(address => bool) public signersList;
+    mapping(address => bool) private submitters;
+    mapping(address => bool) private signersList;
+    mapping(address => bool) private withdrawals;
     mapping(address => SubmittedProposal) private proposals;
-    
+
     // Address variables
     address private contractOwner;
     address[] private listOfContributors;
@@ -197,7 +195,6 @@ contract MultiSig {
     // Integer variables
     uint public signerCount = 0;
     uint public totalContribution = 0; //in Weis
-    
     ProposalState public state;
 
     constructor () public {
@@ -211,8 +208,6 @@ contract MultiSig {
         //my test in remix to be removed
         signersList[address(0x00dd870fa1b7c4700f2bd7f44238821c26f7392148)] = true; signerCount = signerCount.add(1);
         signersList[address(0x00583031d1113ad414f02576bd6afabfb302140225)] = true; signerCount = signerCount.add(1);
-
-        //emit CheckState("AcceptingContributions");
     }
 
     modifier isSigner() {
@@ -221,7 +216,7 @@ contract MultiSig {
     }
 
     modifier isNotASigner() {
-        require(!signersList[msg.sender],"Signer cannot submit a proposal!!!");
+        require(!signersList[msg.sender],"Signer not allowed to perform this operation!!!");
         _;
     }
 
@@ -230,12 +225,6 @@ contract MultiSig {
         _;
     }
 
-/*
-    modifier isContributorOrSigner() {
-        require(contributors[msg.sender] || signersList[msg.sender],"Only contributor or a signer can call this function!!!");
-        _;
-    }
-*/
     modifier inState(ProposalState _state) {
         require(state == _state, "Please check the required state for this activity!!!");
         _;
@@ -267,11 +256,12 @@ contract MultiSig {
    * not accept contributions anymore and will accept all other functions
    * (submit proposal, vote, withdraw)
 
-   1. contract should have some ether ebfore calling endContributionPeriod
+   1. contract should have some ether before calling endContributionPeriod
    */
   function endContributionPeriod() external isSigner inState(ProposalState.AcceptingContributions) {
+      require(totalContribution > 0, "Not enough ethers in contract, fund contract before ending contribution period!!!");
+
       state = ProposalState.Active;
-      //emit CheckState("Active");
   }
 
    /*
@@ -286,11 +276,10 @@ contract MultiSig {
    2. reduce _value from totalContribution -- DONE
    */
    function submitProposal(uint _value) external isNotASigner inState(ProposalState.Active) {
-     require(_value <= totalContribution.div(10),"Value cannot be more than 10% of the total holdings of the contract!!!");
-    //   require(_value <= getContractBalance().div(10),"Value cannot be more than 10% of the total holdings of the contract!!!");
-       require(!submitted[msg.sender], "Beneficiary is allowed only one proposal at a time!!!");
+        require(_value <= totalContribution.div(10),"Value cannot be more than 10% of the total holdings of the contract!!!");
+        require(!submitters[msg.sender], "Beneficiary is allowed only one proposal at a time!!!");
 
-       SubmittedProposal memory newProposal = SubmittedProposal({
+        SubmittedProposal memory newProposal = SubmittedProposal({
            submitter: msg.sender,
            amountRequested: _value,
            approvalCount: 0,
@@ -299,7 +288,7 @@ contract MultiSig {
 
         proposals[msg.sender] = newProposal;
         getProposalValue[msg.sender] = _value;
-        submitted[msg.sender] = true;
+        submitters[msg.sender] = true;
         totalContribution = totalContribution.sub(_value);
 
         emit ProposalSubmitted(msg.sender, _value);
@@ -342,6 +331,8 @@ function getCompleteProposal(address _beneficiary) public view returns (address,
    2. you can approve only once -- DONE
    */
   function approve(address _beneficiary) external isSigner inState(ProposalState.Active) {
+    require(submitters[_beneficiary],"No proposal submitted for this beneficiary!!!");
+
     SubmittedProposal storage aProposal = proposals[_beneficiary];
 
     require(!aProposal.rejections[msg.sender],"You cannot approve as you have already rejected this proposal!!!");
@@ -360,6 +351,8 @@ function getCompleteProposal(address _beneficiary) public view returns (address,
    2. you can reject only once --DONE
    */
   function reject(address _beneficiary) external isSigner inState(ProposalState.Active) {
+    require(submitters[_beneficiary],"No proposal submitted for this beneficiary!!!");
+
     SubmittedProposal storage rProposal = proposals[_beneficiary];
 
     require(!rProposal.approvals[msg.sender],"You cannot reject as you have already approved this proposal!!!");
@@ -386,37 +379,63 @@ function getCompleteProposal(address _beneficiary) public view returns (address,
    * he/she proposed. If he/she wants to withdraw more, a new proposal
    * should be sent.
    *
+   TODO: 
+   1.handle multiple withdrawals
+   2. you cannot withdraw without submitting proposal -- DONE
    */
-  function withdraw(uint _value) external isContributor inState(ProposalState.Active) payable {
+  function withdraw(uint _value) external isNotASigner inState(ProposalState.Active) payable {
+    require(submitters[msg.sender],"No proposal submitted for this beneficiary!!!");
     // get proposal from msg.sender
     SubmittedProposal storage withdrawProposal = proposals[msg.sender];
+    require(!withdrawals[msg.sender],"Withdrawals allowed only once!!!");
+
+//    require(withdrawProposal.approvals[msg.sender] || withdrawProposal.rejections[msg.sender],
+//        "Proposal neither approved nor rejected!!!");
+
     uint proposedValue = getProposalValue[msg.sender];
 
     // Minimum 50% signers should approve!!! and
     // requested _value should be less than or equal to proposed value
-    if( withdrawProposal.approvalCount >= signerCount.div(2) && _value <= proposedValue ) {
-        msg.sender.transfer(_value); // contract balance will decrease
-        
-        if(_value < proposedValue) {
+    if(withdrawProposal.approvalCount >= signerCount.div(2)) {
+        if(_value == proposedValue) {
+            msg.sender.transfer(_value); // contract balance will decrease
+            withdrawals[msg.sender] = true;
+            emit WithdrawPerformed(msg.sender, _value);
+        } else if(_value < proposedValue) {
+            msg.sender.transfer(_value);
             uint residualValue = proposedValue.sub(_value);
-            totalContribution = totalContribution.add(residualValue);
+            totalContribution = totalContribution.add(residualValue); // add unused value to totalContribution
+            //address(this).transfer(residualValue); // transfer back unused value to contract
+            //getProposalValue[msg.sender] = residualValue;
+            withdrawals[msg.sender] = true;
+            emit WithdrawPerformed(msg.sender, _value);
+        } else if(_value > proposedValue) {
+            totalContribution = totalContribution.add(proposedValue); // add back unused value to totalContribution
+            withdrawals[msg.sender] = true;
+            revert("Requested more than proposed value, Submit a new Proposal!!!");
         }
-        
-        emit WithdrawPerformed(msg.sender, _value);
-    } else {
-        revert("Either not enough approvals OR requested value greater than proposed value");
     }
-    
+
     // Minimum 50% signers should reject
     if(withdrawProposal.rejectionCount >= signerCount.div(2)) {
-      // hence adding the value back to totalContribution
       totalContribution = totalContribution.add(proposedValue); // add back unused/rejected value to totalContribution
-      address(this).transfer(proposedValue); // transfer back unused/rejected value to contract
+      withdrawals[msg.sender] = true;
+    }
+
+    // if approval and rejection counts are equal
+    if(withdrawProposal.approvalCount == withdrawProposal.rejectionCount) {
+        withdrawals[msg.sender] = true;
+        totalContribution = totalContribution.add(proposedValue); // add back unused/rejected value to totalContribution
+        revert("No Majority hence withdraw cancelled!!!");
     }
   }
 
   function getContractBalance() public view returns(uint){
       return address(this).balance;
+  }
+
+  function getBalance() public view returns(uint){
+      return address(msg.sender).balance;
   }
 
   function owner() public view returns (address) {

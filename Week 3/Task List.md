@@ -14,7 +14,7 @@
     function endContributionPeriod() external;
  `  
 - [x] Only signers can call the “endContribution” function, 
--   [x] Only other requirement is that the Contract should have received some ether (taken care in constructor and fallback function)
+-   [x] Only other requirement is that the Contract should have received some ether (added check)
 -   [x] A signer can call the approve or reject a proposal. A signer can call only one of these functions and 
 -   [x] that too only once.
 -   [x] If the majority (ie > 50%) of signers have called approve function, the proposal is "accepted". If the majority of signers have called the reject function, the proposal is "rejected".
@@ -33,10 +33,12 @@
 have a fallback function, then june 16 transferether
 - [x] anyone can contribute,
 - [x] signers cannot submit proposal
+- [x] signers cannot withdraw, as he has cannot submit proposal
+- [x] cannot withdraw if proposal neither approved or rejected
 - [x] set wei as default unit
 - [x] set minimum contribution
 - [x] Only one at a time. A beneficiary cannot have two open proposals.
 - [ ] add proposal state for each proposal separately
 - [ ] should I change proposal to AcceptingContributions in withdraw after it is accepted or rejected?
 - [ ] handle multiple proposals
-- [ ] implement listOpenBeneficiariesProposals
+- [x] implement listOpenBeneficiariesProposals

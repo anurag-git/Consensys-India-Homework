@@ -188,9 +188,11 @@ contract MultiSig {
     mapping(address => bool) private withdrawals;
     mapping(address => SubmittedProposal) private proposals;
 
+
     // Address variables
     address private contractOwner;
     address[] private listOfContributors;
+    address[] private openBeneficiaries;
 
     // Integer variables
     uint public signerCount = 0;
@@ -208,6 +210,7 @@ contract MultiSig {
         //my test in remix to be removed
         signersList[address(0x00dd870fa1b7c4700f2bd7f44238821c26f7392148)] = true; signerCount = signerCount.add(1);
         signersList[address(0x00583031d1113ad414f02576bd6afabfb302140225)] = true; signerCount = signerCount.add(1);
+        signersList[address(0x004b0897b0513fdc7c541b6d9d7e929c4e5364d2db)] = true; signerCount = signerCount.add(1);
     }
 
     modifier isSigner() {
@@ -276,7 +279,8 @@ contract MultiSig {
    2. reduce _value from totalContribution -- DONE
    */
    function submitProposal(uint _value) external isNotASigner inState(ProposalState.Active) {
-        require(_value <= totalContribution.div(10),"Value cannot be more than 10% of the total holdings of the contract!!!");
+        require(_value <= totalContribution.div(2),"Value cannot be more than 10% of the total holdings of the contract!!!");
+        //require(_value <= totalContribution.div(10),"Value cannot be more than 10% of the total holdings of the contract!!!");
         require(!submitters[msg.sender], "Beneficiary is allowed only one proposal at a time!!!");
 
         SubmittedProposal memory newProposal = SubmittedProposal({
@@ -286,6 +290,8 @@ contract MultiSig {
            rejectionCount: 0
         });
 
+        openBeneficiaries.push(msg.sender);
+
         proposals[msg.sender] = newProposal;
         getProposalValue[msg.sender] = _value;
         submitters[msg.sender] = true;
@@ -294,7 +300,7 @@ contract MultiSig {
         emit ProposalSubmitted(msg.sender, _value);
    }
 
-function getCompleteProposal(address _beneficiary) public view returns (address,uint,uint,uint) {
+   function getCompleteProposal(address _beneficiary) public view returns (address,uint,uint,uint) {
     SubmittedProposal memory tempProposal = proposals[_beneficiary];
     return (
       tempProposal.submitter,
@@ -342,6 +348,10 @@ function getCompleteProposal(address _beneficiary) public view returns (address,
     aProposal.approvalCount = aProposal.approvalCount.add(1);
     aProposal.approvals[msg.sender] = true;
 
+    if( aProposal.approvalCount.mul(100) >= signerCount.mul(100).div(2) ) {
+        removeByValue(_beneficiary);
+    }
+
     emit ProposalApproved(msg.sender, _beneficiary, value);
   }
 
@@ -362,6 +372,10 @@ function getCompleteProposal(address _beneficiary) public view returns (address,
     rProposal.rejectionCount = rProposal.rejectionCount.add(1);
     rProposal.rejections[msg.sender] = true;
 
+    if( rProposal.rejectionCount.mul(100) >= signerCount.mul(100).div(2) ) {
+        removeByValue(_beneficiary);
+    }
+
     emit ProposalRejected(msg.sender, _beneficiary, value);
   }
 
@@ -370,7 +384,10 @@ function getCompleteProposal(address _beneficiary) public view returns (address,
    * proposal is the one in which the majority of voters have not
    * voted yet.
    */
-  //function listOpenBeneficiariesProposals() external view returns (address[]);
+  function listOpenBeneficiariesProposals() external view returns (address[]) {
+      // means beneficiary whose proposal is neither approved nor rejected by majority(50%)
+         return openBeneficiaries;
+  }
 
 
   /*
@@ -379,7 +396,7 @@ function getCompleteProposal(address _beneficiary) public view returns (address,
    * he/she proposed. If he/she wants to withdraw more, a new proposal
    * should be sent.
    *
-   TODO: 
+   TODO:
    1.handle multiple withdrawals
    2. you cannot withdraw without submitting proposal -- DONE
    */
@@ -441,4 +458,27 @@ function getCompleteProposal(address _beneficiary) public view returns (address,
   function owner() public view returns (address) {
     return contractOwner;
   }
+
+  // functions for listOpenBeneficiariesProposals
+  function find(address _addr) private view returns(uint) {
+        uint i = 0;
+        while (openBeneficiaries[i] != _addr) {
+            i++;
+        }
+        return i;
+    }
+
+    function removeByIndex(uint i) private {
+        while (i<openBeneficiaries.length-1) {
+            openBeneficiaries[i] = openBeneficiaries[i+1];
+            i++;
+        }
+        openBeneficiaries.length--;
+    }
+
+    function removeByValue(address _addr) private {
+        uint i = find(_addr);
+        removeByIndex(i);
+    }
+    // functions for listOpenBeneficiariesProposals
 }

@@ -42,3 +42,4 @@ have a fallback function, then june 16 transferether
 - [ ] should I change proposal to AcceptingContributions in withdraw after it is accepted or rejected?
 - [ ] handle multiple proposals
 - [x] implement listOpenBeneficiariesProposals
+- [x] submit again if rejected

@@ -1,7 +1,7 @@
 /*
 1. contract creation and deployed
-2. contribute to any given proposal
-3. endContribution for any given proposal
+2. contribute
+3. endContribution 
 4. submitProposal for withdrawal
 5. Approve or Reject the proposal
 6. Withdraw the proposed value
@@ -147,6 +147,15 @@ interface AbstractMultiSig {
    */
   function withdraw(uint _value) external;
   event WithdrawPerformed(address indexed beneficiary, uint _valueInWei);
+  
+  /*
+   * Returns whether a given signer has voted in the given proposal and if so,
+   * what was his/her vote.
+   *
+   * @returns 0: if signer has not voted yet in this proposal, 1: if signer
+   * has voted YES in this proposal, 2: if signer has voted NO in this proposal
+   */
+  function getSignerVote(address _signer, address _beneficiary) view external returns(uint);
 
 }
 
@@ -395,6 +404,35 @@ contract MultiSig {
          return openBeneficiaries;
   }
 
+   /*
+   * Returns whether a given signer has voted in the given proposal and if so,
+   * what was his/her vote.
+   *
+   * @returns 
+   0: if signer has not voted yet in this proposal, 
+   1: if signer has voted YES in this proposal, 
+   2: if signer has voted NO in this proposal
+   */
+  function getSignerVote(address _signer, address _beneficiary) view external returns(uint) {
+      SubmittedProposal storage getProp = proposals[_beneficiary];
+      uint voteStatus;
+      bool aStatus = getProp.approvals[_signer];
+      bool rStatus = getProp.rejections[_signer];
+      
+      if(aStatus == false && rStatus == false) {
+          voteStatus = 0;
+      }
+      
+      if(aStatus) {
+          voteStatus = 1;
+      }
+      
+      if(rStatus) {
+          voteStatus = 2;
+      }
+      
+      return voteStatus;
+  }
 
   /*
    * Withdraw the specified value from the wallet.
